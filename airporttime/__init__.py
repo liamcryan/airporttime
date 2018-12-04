@@ -5,47 +5,75 @@ https://raw.githubusercontent.com/opentraveldata/opentraveldata/master/opentrave
 
 """
 import csv
-import os
 from datetime import datetime
+import os
+import functools
 
 import pytz
 from timezonefinder import TimezoneFinder
 
+here = os.path.abspath(os.path.dirname(__file__))
 
-class AirportTZ(object):
-    def __init__(self, iata_code):
+
+@functools.lru_cache()
+def get_airport_by_iata(iata_code: str):
+    with open(os.path.join(os.path.abspath(here), 'optd_por_best_known_so_far.csv'), 'rt', encoding='utf-8') as f:
+        iata_code_index = 1
+        reader = csv.reader(f, delimiter='^')
+        for row in reader:
+            if row[iata_code_index] != iata_code:
+                continue
+            return row
+
+
+class AirportDetails(object):
+    def __init__(self, pk, iata_code, latitude, longitude, city_code, date_from, tz):
+        self.pk = pk
         self.iata_code = iata_code
-        self.coordinates = None
-        self.tz = self.get_tz()
+        self.latitude = latitude
+        self.longitude = longitude
+        self.city_code = city_code
+        self.date_from = date_from
+        self.tz = tz
 
-    def get_tz(self):
+    @classmethod
+    def get_airport(cls, iata_code: str):
         """ return the time zone string """
         # pk^iata_code^latitude^longitude^city_code^date_from (these are the column headers in the csv file)
-        with open(os.path.join(os.path.abspath('.'), 'optd_por_best_known_so_far.csv'), 'rt', encoding='utf-8') as f:
-            iata_code_index = 1
-            latitude_index = 2
-            longitude_index = 3
-            reader = csv.reader(f, delimiter='^')
-            for row in reader:
-                if row[iata_code_index] != self.iata_code:
-                    continue
-                self.coordinates = (float(row[latitude_index]), float(row[longitude_index]))
-                tf = TimezoneFinder()
-                return tf.timezone_at(lng=self.coordinates[1], lat=self.coordinates[0])
+        row = [_ for _ in get_airport_by_iata(iata_code=iata_code)]
+        latitude_index = 2
+        longitude_index = 3
+        row[latitude_index] = float(row[latitude_index])
+        row[longitude_index] = float(row[longitude_index])
+        tf = TimezoneFinder()
+        row.append(tf.timezone_at(lng=row[longitude_index], lat=row[latitude_index]))
+        return cls(*row)
 
-    def to_utc(self, local_datetime: datetime) -> datetime:
-        """ return the datetime converted to utc """
-        local_tz = pytz.timezone(self.tz)  # this is the local timezone object
-        dst = local_tz.localize(local_datetime).dst()  # this will return a timedelta with number 0 or 1 hour
+
+class AirportTime(object):
+    def __init__(self, iata_code: str):
+        self.airport = AirportDetails.get_airport(iata_code=iata_code)
+
+    def dst(self, dt: datetime, tz: pytz.tzfile) -> bool:
+        dst = tz.localize(dt).dst()
         if dst.seconds == 0:
-            return local_tz.localize(local_datetime, is_dst=False)
-        return local_tz.localize(local_datetime, is_dst=True)
+            return False
+        return True
 
+    def to_utc(self, loc_dt: datetime) -> datetime:
+        """ returns a tz aware datetime converted to utc
 
-if __name__ == '__main__':
-    import time
-    st = time.time()
-    a = AirportTZ('LAX')
-    utc_time = a.to_utc(datetime.now())
-    print(utc_time, datetime.utcnow())
-    print('took: {}s'.format(time.time() - st))
+        :param loc_dt: naive local datetime (no tz info)
+        """
+
+        local_tz = pytz.timezone(self.airport.tz)
+        dst = self.dst(dt=loc_dt, tz=local_tz)
+        utc_datetime = local_tz.localize(loc_dt, is_dst=dst).astimezone(pytz.utc)
+        return utc_datetime
+
+    def from_utc(self, utc_dt):
+        """ returns a tz aware datetime converted from utc.
+        :param utc: a naive / tz aware utc datetime (if not tz info given, utc assumed)
+        """
+        local_tz = pytz.timezone(self.airport.tz)
+        return utc_dt.astimezone(local_tz)
