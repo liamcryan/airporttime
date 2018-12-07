@@ -7,8 +7,7 @@ Convert local time to utc time by airport or vise-versa.
 This works thanks to opentraveldata.  The data source for converting iata code to coordinates is here:
 https://raw.githubusercontent.com/opentraveldata/opentraveldata/master/opentraveldata/optd_por_best_known_so_far.csv
 
-Once the coordinates are found, the python library timezonefinder is able to calculate the time zone.  The library
-pytz is used for datetime conversions.
+The csv this library uses was modified to include the timezone with the help of timezonefinder.
 
 
 Usage
@@ -31,6 +30,9 @@ Here is the usage::
     # you can make your tz_aware times naive (this can be helpful and is part of the datetime library)
     tz_aware_utc_time.replace(tzinfo=None)
     tz_aware_loc_time.replace(tzinfo=None)
+
+    # if for some reason you would like to update the data file, you can use (but it takes a while):
+    airporttime.update()
 
 
 Features

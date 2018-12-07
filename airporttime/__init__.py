@@ -8,9 +8,15 @@ import csv
 from datetime import datetime
 import os
 import functools
+import requests
 
 import pytz
 from timezonefinder import TimezoneFinder
+
+LATITUDE_INDEX = 2
+LONGITUDE_INDEX = 3
+IATA_CODE_INDEX = 1
+TIMEZONE_INDEX = 6
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -39,15 +45,9 @@ class AirportDetails(object):
     @classmethod
     def get_airport(cls, iata_code: str):
         """ return the time zone string """
-        # pk^iata_code^latitude^longitude^city_code^date_from (these are the column headers in the csv file)
+        # pk^iata_code^latitude^longitude^city_code^date_from^timezone (these are the column headers in the csv file)
         row = [_ for _ in get_airport_by_iata(iata_code=iata_code)]
-        latitude_index = 2
-        longitude_index = 3
-        row[latitude_index] = float(row[latitude_index])
-        row[longitude_index] = float(row[longitude_index])
-        tf = TimezoneFinder()
-        row.append(tf.timezone_at(lng=row[longitude_index], lat=row[latitude_index]))
-        return cls(*row)
+        return cls(*row[:-1])
 
 
 class AirportTime(object):
@@ -77,3 +77,33 @@ class AirportTime(object):
         """
         local_tz = pytz.timezone(self.airport.tz)
         return utc_dt.astimezone(local_tz)
+
+
+def update_airports(**kwargs):
+    url = 'https://raw.githubusercontent.com/opentraveldata/opentraveldata/master/opentraveldata/optd_por_best_known_so_far.csv'
+    r = requests.get(url, **kwargs)
+
+    rows = r.text.split('\n')
+    rows[0] += '^timezone'
+    for i, row in enumerate(rows[1:]):
+        if row == '':
+            continue
+        tf = TimezoneFinder()
+        split_row = row.split('^')
+        tz = tf.timezone_at(lng=float(split_row[LONGITUDE_INDEX]), lat=float(split_row[LATITUDE_INDEX]))
+        if tz:
+            rows[i+1] += '^' + tz + '^'
+        else:
+            rows[i+1] += '^'
+
+    with open(os.path.join(os.path.abspath(here), 'optd_por_best_known_so_far.csv'), 'wt', encoding='utf-8') as f:
+        f.write('\n'.join(rows))
+
+
+if __name__ == '__main__':
+    # update_airports()
+    from datetime import timedelta
+    a = AirportTime('LAX')
+    local_datetime_dst = datetime(2018, 9, 1, 10, 30)
+    utc_time_dst = a.to_utc(local_datetime_dst)
+    assert local_datetime_dst == utc_time_dst.replace(tzinfo=None) - timedelta(days=0, seconds=60 * 60 * 7)
