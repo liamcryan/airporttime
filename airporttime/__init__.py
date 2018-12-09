@@ -38,7 +38,7 @@ def get_airport_by_iata(iata_code: str) -> str:
             return row
 
 
-class AirportDetails(object):
+class AirportDetail(object):
     def __init__(self, pk, iata_code, latitude, longitude, city_code, date_from, tz):
         self.pk = pk
         self.iata_code = iata_code
@@ -61,9 +61,10 @@ class AirportDetails(object):
 
 class AirportTime(object):
     def __init__(self, iata_code: str):
-        self.airport = AirportDetails.get_airport(iata_code=iata_code)
+        self.airport = AirportDetail.get_airport(iata_code=iata_code)
 
-    def _dst(self, dt: datetime, tz: pytz.tzfile) -> bool:
+    @staticmethod
+    def _dst(dt: datetime, tz: pytz.tzfile) -> bool:
         """ Find out if the provided naive datetime and time zone are in daylight savings time or not.
 
         :param dt: the date you are referencing
@@ -78,11 +79,11 @@ class AirportTime(object):
     def to_utc(self, loc_dt: datetime) -> datetime:
         """ Convert a datetime from local time to UTC.
 
-        :param loc_dt: naive local datetime (or if you have the tz, this will also convert to UTC)
+        :param loc_dt: naive local datetime
         :return: a tz aware datetime
         """
         if loc_dt.tzinfo:
-            return loc_dt.replace(tzinfo=pytz.utc)
+            raise Exception('Must provide a naive datetime (no tzinfo)')
 
         local_tz = pytz.timezone(self.airport.tz)
         dst = self._dst(dt=loc_dt, tz=local_tz)
@@ -121,3 +122,10 @@ def update_airports(**requests_kwargs):
 
     with open(os.path.join(os.path.abspath(here), 'optd_por_best_known_so_far.csv'), 'wt', encoding='utf-8') as f:
         f.write('\n'.join(rows))
+if __name__ == '__main__':
+    AirportTime('ORD')
+    AirportTime('ORD')
+    AirportTime('JFK')
+
+    cache_info = get_airport_by_iata.cache_info()
+    print('ok')

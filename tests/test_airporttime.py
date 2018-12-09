@@ -1,33 +1,58 @@
 import unittest
 from datetime import timedelta, datetime
 
-from airporttime import AirportTime, get_airport_by_iata
+import pytz
+
+from airporttime import AirportTime, get_airport_by_iata, AirportDetail
 
 
-class DSTTestCase(unittest.TestCase):
+class AirportTimeTestCase(unittest.TestCase):
+    loc_time_dst_naive = datetime(2018, 9, 1, 10, 30)
+    loc_time_not_dst_naive = datetime(2018, 12, 3, 10, 30)
+    iata_code = 'LAX'
+    tz = 'America/Los_Angeles'
+
+    def test_airport_tz(self):
+        assert AirportDetail.get_airport(iata_code=self.iata_code).tz == self.tz
+
+    def test_is_dst(self):
+        assert AirportTime._dst(dt=self.loc_time_dst_naive, tz=pytz.timezone(self.tz)) is True
+
+    def test_is_not_dst(self):
+        assert AirportTime._dst(dt=self.loc_time_not_dst_naive, tz=pytz.timezone(self.tz)) is False
 
     def test_to_utc_daylight_savings_time(self):
-        a = AirportTime('LAX')
-        local_datetime_dst = datetime(2018, 9, 1, 10, 30)
+        a = AirportTime(self.iata_code)
+        local_datetime_dst = self.loc_time_dst_naive
         utc_time_dst = a.to_utc(local_datetime_dst)
         self.assertEqual(local_datetime_dst, utc_time_dst.replace(tzinfo=None) - timedelta(days=0, seconds=60 * 60 * 7))
 
     def test_to_utc_not_daylight_savings_time(self):
-        a = AirportTime('LAX')
-        local_datetime_no_dst = datetime(2018, 12, 3, 10, 30)
+        a = AirportTime(self.iata_code)
+        local_datetime_no_dst = self.loc_time_not_dst_naive
         utc_time_no_dst = a.to_utc(local_datetime_no_dst)
         self.assertEqual(local_datetime_no_dst,
                          utc_time_no_dst.replace(tzinfo=None) - timedelta(days=0, seconds=60 * 60 * 8))
 
+    def test_from_utc(self):
+        a = AirportTime(self.iata_code)
+        utc_time = a.to_utc(self.loc_time_dst_naive)
+        assert a.from_utc(utc_time).replace(tzinfo=None) == self.loc_time_dst_naive
+
 
 class CacheTestCase(unittest.TestCase):
+    iata1 = 'ORD'
+    iata2 = 'JFK'
 
     def test_lru_cache(self):
-        AirportTime('LAX')
-        AirportTime('LAX')
-        AirportTime('JFK')
+        get_airport_by_iata.cache_clear()
+        
+        AirportTime(self.iata1)
+        AirportTime(self.iata1)
+        AirportTime(self.iata2)
 
         cache_info = get_airport_by_iata.cache_info()
+
         self.assertEqual(cache_info.hits, 1)
         self.assertEqual(cache_info.misses, 2)
         self.assertEqual(cache_info.currsize, 2)
