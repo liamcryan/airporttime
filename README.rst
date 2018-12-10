@@ -32,3 +32,4 @@ Here is the usage::
 
     # if for some reason you would like to update the data file, you can use (but it takes a while):
     airporttime.update()
+
