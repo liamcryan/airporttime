@@ -10,13 +10,15 @@ class AirportTimeTestCase(unittest.TestCase):
     loc_time_dst_naive = datetime(2018, 9, 1, 10, 30)
     loc_time_not_dst_naive = datetime(2018, 12, 3, 10, 30)
     iata_code = 'LAX'
+    icao_code = 'KLAX'
     tz = 'America/Los_Angeles'
 
     def test_airport_tz(self):
-        assert AirportDetail.get_airport(iata_code=self.iata_code).tz == self.tz
+        self.assertEqual(AirportDetail.get_airport(iata_code=self.iata_code).__getattribute__('timezone'), self.tz)
 
     def test_is_dst(self):
-        assert AirportTime._dst(dt=self.loc_time_dst_naive, tz=pytz.timezone(self.tz)) is True
+        self.assertTrue(
+            AirportTime._dst(dt=self.loc_time_dst_naive, tz=pytz.timezone(self.tz)))
 
     def test_is_not_dst(self):
         assert AirportTime._dst(dt=self.loc_time_not_dst_naive, tz=pytz.timezone(self.tz)) is False
@@ -37,7 +39,12 @@ class AirportTimeTestCase(unittest.TestCase):
     def test_from_utc(self):
         a = AirportTime(self.iata_code)
         utc_time = a.to_utc(self.loc_time_dst_naive)
-        assert a.from_utc(utc_time).replace(tzinfo=None) == self.loc_time_dst_naive
+        self.assertEqual(a.from_utc(utc_time).replace(tzinfo=None), self.loc_time_dst_naive)
+
+    def test_icao_iata(self):
+        a = AirportTime(iata_code=self.iata_code)
+        b = AirportTime(icao_code=self.icao_code)
+        self.assertEqual(a.airport.__dict__, b.airport.__dict__)
 
 
 class CacheTestCase(unittest.TestCase):
@@ -46,7 +53,7 @@ class CacheTestCase(unittest.TestCase):
 
     def test_lru_cache(self):
         get_airport_by_iata.cache_clear()
-        
+
         AirportTime(self.iata1)
         AirportTime(self.iata1)
         AirportTime(self.iata2)

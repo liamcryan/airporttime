@@ -5,63 +5,64 @@ import csv
 from datetime import datetime
 import os
 import functools
-import requests
+from typing import Optional, Dict
 
 import pytz
-from timezonefinder import TimezoneFinder
+import requests
 
-DATA_SOURCE_URL = 'https://raw.githubusercontent.com/opentraveldata/opentraveldata/master/opentraveldata/optd_por_best_known_so_far.csv'
-LATITUDE_INDEX = 2
-LONGITUDE_INDEX = 3
-IATA_CODE_INDEX = 1
-TIMEZONE_INDEX = 6
-
-here = os.path.abspath(os.path.dirname(__file__))
+DATA_SOURCE_URL = 'https://raw.githubusercontent.com/opentraveldata/opentraveldata/master/opentraveldata/optd_por_public.csv'
+DATA_SOURCE_FILE = os.path.join(os.path.abspath(os.path.abspath(os.path.dirname(__file__))), 'ori_por_public.csv')
+LATITUDE_INDEX = 8
+LONGITUDE_INDEX = 9
+IATA_CODE_INDEX = 0
+ICAO_CODE_INDEX = 1
+TIMEZONE_INDEX = 31
 
 
 @functools.lru_cache()
-def get_airport_by_iata(iata_code: str) -> str:
+def get_airport_by_iata(iata_code: Optional[str] = None, icao_code: Optional[str] = None) -> Dict:
     """ Get the airport details for a given airport from the data source file.
 
     :param iata_code: a 3 character airport code
-    :returns: a row of text
+    :param icao_code: a 4 character airport code
+    :returns: a dictionary representing the row
     """
-    if len(iata_code) == 4:
-        raise Exception('iata code must be provided.')
 
-    with open(os.path.join(os.path.abspath(here), 'optd_por_best_known_so_far.csv'), 'rt', encoding='utf-8') as f:
-        iata_code_index = 1
+    if iata_code:
+        id_index = {'id': iata_code, 'index': IATA_CODE_INDEX}
+    elif icao_code:
+        id_index = {'id': icao_code, 'index': ICAO_CODE_INDEX}
+    else:
+        raise Exception('iata code or icao code must be provided.')
+
+    with open(DATA_SOURCE_FILE, 'rt', encoding='utf-8') as f:
         reader = csv.reader(f, delimiter='^')
+        headers = reader.__next__()
         for row in reader:
-            if row[iata_code_index] != iata_code:
+            if row[id_index['index']] != id_index['id']:
                 continue
-            return row
+            return {headers[i]: v for i, v in enumerate(row)}
 
 
 class AirportDetail(object):
-    def __init__(self, pk, iata_code, latitude, longitude, city_code, date_from, tz):
-        self.pk = pk
-        self.iata_code = iata_code
-        self.latitude = latitude
-        self.longitude = longitude
-        self.city_code = city_code
-        self.date_from = date_from
-        self.tz = tz
+    def __init__(self, **kwargs):
+        self.__dict__ = kwargs
 
     @classmethod
-    def get_airport(cls, iata_code: str):
+    def get_airport(cls, iata_code: Optional[str] = None, icao_code: Optional[str] = None):
         """ Get the details for a given airport.
 
-        :param iata_code:  a three character airport code
+        :param iata_code:  a 3 character airport code
+        :param icao_code: a 4 character airport code
         :returns: instance of class
         """
-        row = [_ for _ in get_airport_by_iata(iata_code=iata_code)]
-        return cls(*row)
+        row = get_airport_by_iata(iata_code=iata_code, icao_code=icao_code)
+        return cls(**row)
 
 
 class AirportTime(object):
-    def __init__(self, iata_code: str):
-        self.airport = AirportDetail.get_airport(iata_code=iata_code)
+    def __init__(self, iata_code: Optional[str] = None, icao_code: Optional[str] = None):
+        self.airport = AirportDetail.get_airport(iata_code=iata_code, icao_code=icao_code)
 
     @staticmethod
     def _dst(dt: datetime, tz: pytz.tzfile) -> bool:
@@ -85,7 +86,7 @@ class AirportTime(object):
         if loc_dt.tzinfo:
             raise Exception('Must provide a naive datetime (no tzinfo)')
 
-        local_tz = pytz.timezone(self.airport.tz)
+        local_tz = pytz.timezone(self.airport.__getattribute__('timezone'))
         dst = self._dst(dt=loc_dt, tz=local_tz)
         utc_datetime = local_tz.localize(loc_dt, is_dst=dst).astimezone(pytz.utc)
         return utc_datetime
@@ -96,12 +97,12 @@ class AirportTime(object):
         :param utc_dt: a naive / tz aware utc datetime (if not tz info given, utc assumed)
         :return: a tz aware datetime
         """
-        local_tz = pytz.timezone(self.airport.tz)
+        local_tz = pytz.timezone(self.airport.__getattribute__('timezone'))
         return utc_dt.astimezone(local_tz)
 
 
 def update_airports(**requests_kwargs):
-    """ Update the optd_por_best_known_so_far.csv file directly from source.
+    """ Update the ori_por_public.csv file directly from source.
 
     :param requests_kwargs: any kwargs you would like to pass to the requests.get method
             proxy={'http': '', 'https': ''}  <- might be useful if you are requesting within proxy server
@@ -109,23 +110,5 @@ def update_airports(**requests_kwargs):
     """
     r = requests.get(DATA_SOURCE_URL, **requests_kwargs)
 
-    rows = r.text.split('\n')
-    rows[0] += '^timezone'
-    for i, row in enumerate(rows[1:]):
-        if row == '':
-            continue
-        tf = TimezoneFinder()
-        split_row = row.split('^')
-        tz = tf.timezone_at(lng=float(split_row[LONGITUDE_INDEX]), lat=float(split_row[LATITUDE_INDEX]))
-        if tz:
-            rows[i+1] += '^' + tz
-
-    with open(os.path.join(os.path.abspath(here), 'optd_por_best_known_so_far.csv'), 'wt', encoding='utf-8') as f:
-        f.write('\n'.join(rows))
-if __name__ == '__main__':
-    AirportTime('ORD')
-    AirportTime('ORD')
-    AirportTime('JFK')
-
-    cache_info = get_airport_by_iata.cache_info()
-    print('ok')
+    with open(DATA_SOURCE_FILE, 'wt', encoding='utf-8') as f:
+        f.write(r.text)

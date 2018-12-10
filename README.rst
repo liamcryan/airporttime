@@ -4,10 +4,8 @@ airporttime
 
 Convert local time to utc time by airport or vise-versa.
 
-This works thanks to data from opentraveldata.  The data source for converting iata code to coordinates is here:
-https://raw.githubusercontent.com/opentraveldata/opentraveldata/master/opentraveldata/optd_por_best_known_so_far.csv
-
-The csv this library uses was modified to include the timezone with the help of timezonefinder.
+This works thanks to data from opentraveldata.  The data source is here:
+https://raw.githubusercontent.com/opentraveldata/opentraveldata/master/opentraveldata/optd_por_public.csv
 
 
 Usage
@@ -34,14 +32,3 @@ Here is the usage::
 
     # if for some reason you would like to update the data file, you can use (but it takes a while):
     airporttime.update()
-
-
-Features
-________
-
-This library stores the iata/coordinate info in a csv file.  When you ask for a iata airport station, this file
-is opened and searched until the station is found.
-
-If you are converting a lot of station times from local to utc for example, it is beneficial for speed to
-open this file as few times as possible.  functools.lru_cache is used so that if you convert a local datetime at
-'JFK' more than once, the results will be cached and the file opened only once.

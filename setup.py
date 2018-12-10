@@ -4,7 +4,7 @@ from io import open
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-install_requires = ['pytz', 'requests', 'timezonefinder']
+install_requires = ['pytz', 'requests']
 
 with open('README.rst', 'r', encoding='utf-8') as f:
     readme = f.read()
