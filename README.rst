@@ -30,6 +30,6 @@ Here is the usage::
     tz_aware_utc_time.replace(tzinfo=None)
     tz_aware_loc_time.replace(tzinfo=None)
 
-    # if for some reason you would like to update the data file, you can use (but it takes a while):
+    # if you would like to update the data file, you can use:
     airporttime.update()
 
