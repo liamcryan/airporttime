@@ -18,5 +18,7 @@ setup(name='airporttime',
       author_email='cryan.liam@gmail.com',
       packages=find_packages(),
       install_requires=install_requires,
-      include_package_data=True
+      include_package_data=True,
+      url='https://github.com/liamcryan/airporttime',
+      classifiers=['Programming Language :: Python :: 3']
       )
