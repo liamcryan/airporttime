@@ -24,7 +24,7 @@ If a station is missing, you can define your own station like so::
     # note you need to specify either iata code or icao code as well as timezone
 
     # Then run this in the command prompt so the library can use your file
-    >python -m stationtz create_airports ./missing.csv
+    >python -m stationtz create_stations ./missing.csv
     # you will need to run this command each time you update your missing.csv file
 
 
